@@ -31,13 +31,6 @@
 
 #define TIMEOUT 15 // seconds
 
-// int main(int argc, char const *argv[])
-// {
-// 	std::cout << "Hello, world from client.\n";
-// 	return 0;
-// }
-
-// Default constructor
 client::client() : hostname(nullptr), port(nullptr), filename(nullptr) {}
 
 client::client(int argc, char* argv[])
@@ -50,21 +43,21 @@ client::client(int argc, char* argv[])
   }
 
   hostname = getArg(argv[1]);
-  if (hostname == nullptr) {
+  if (hostname.empty()) {
     std::cerr << "ERROR: Unable to get HOSTNAME-OR-IP" << std::endl;
     exit(ARG_ERROR);
   }
 
   port = getArg(argv[2]);
   port = checkPortNo(port);
-  if (port == nullptr) {
+  if (port.empty()) {
     std::cerr << "ERROR: invalid PORT number" << std::endl;
     exit(ARG_ERROR);
   }
 
   // Then we move onto getting the dirName
   filename = getArg(argv[3]);
-  if (filename == nullptr) {
+  if (filename.empty()) {
     std::cerr << "ERROR: Unable to get FILENAME" << std::endl;
     exit(ARG_ERROR);
   }
@@ -76,27 +69,17 @@ client::~client()
   close(sockfd);
 }
 
-//////////////////////////////
-//
-// Protected Helper Functions 
-//
-//////////////////////////////
-const char* client::getArg(const char* arg)
+std::string client::getArg(const char* arg)
 {
 	return arg != nullptr ? (const char*)arg : nullptr;
 }
 
-const char* client::checkPortNo(const char* arg)
+std::string client::checkPortNo(std::string arg)
 {
-	return atoi(arg) > 1023 ? arg : nullptr;
+	return stoi(arg) > 1023 ? arg : nullptr;
 }
 
-//////////////////////////////
-//
-// Public Functions
-//
-//////////////////////////////
-
+int client::getSockFd() {return sockfd;}
 
 void client::usage()
 {
@@ -106,73 +89,82 @@ void client::usage()
   std::cerr << "  <FILENAME>       name of the file to transfer to the server\n";
 }
 
-int client::connect()
+void client::setupHints(struct addrinfo& hints)
 {
-  struct addrinfo hints, *serverAddr;
-  memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
+}
 
-  int result;
-  if ((result = getaddrinfo(hostname, port, &hints, &serverAddr)) != 0) {
-    fprintf(stderr, "ERROR: %s\n", gai_strerror(result));
-    exit(CXN_ERROR);
+struct addrinfo* client::getAddrInfo(struct addrinfo& hints)
+{
+  int status;
+  struct addrinfo* res;
+  if ((status = getaddrinfo(hostname.c_str(), (const char*)port.c_str(), &hints, &res)) != 0) {
+    perror("getaddrinfo");
+    exit(EXIT_FAILURE);
   }
+  return res;
+}
 
-  int secondsAsleep = 0;
-  struct addrinfo *rp;
+ushort client::sleepForOneSecond()
+{
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+  return 1;
+}
 
+bool client::timedOut(ushort secondsAsleep) 
+{
+  return TIMEOUT <= secondsAsleep;
+}
+
+int client::createSocketAndConnect(struct addrinfo* results)
+{
+  struct addrinfo* rp;
+  int fd;
   int status = -1;
+  int secondsAsleep = 0;
+  while( !timedOut(secondsAsleep) && (status == -1) ) {
+    for( rp = results; rp != nullptr; rp = rp->ai_next ) {
+      fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+      if( fd == -1)
+        continue;
 
-  // Keep trying to connect until we've hit our timeout
-  while (secondsAsleep < TIMEOUT && status == -1) {
-    // Loop through our results from getaddrinfo
-    for (rp = serverAddr; rp != nullptr; rp = rp->ai_next) {
-      // create a socket using TCP IP
-      if ((sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol)) == -1)
+      status = ::connect(fd, rp->ai_addr, rp->ai_addrlen);
+      if( status != -1 )
         break;
-    
-      // If we can connect, break out of this loop
-      if ((status = ::connect(sockfd, rp->ai_addr, rp->ai_addrlen)) != -1) {
-        break;
-      }
+      else 
+        close( fd );
+    }// end for
 
-      close(sockfd);
-    } // end for
-
-    // We only want to sleep if we couldn't connect on any IPAddr
-    if (status == -1) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      secondsAsleep++;
-    }
+    if( status == -1 )
+      secondsAsleep += sleepForOneSecond();
   }
 
-  // If we hit TIMEOUT, we're done.
-  if (secondsAsleep == TIMEOUT) {
+  if( timedOut(secondsAsleep) ) {
     errno = ETIMEDOUT;
     perror("ERROR");
     exit(TIMEOUT);
   }
 
-  // This is redundant... 
-  // If we didn't TIMEOUT, ensure we have a connection
-  if (rp == nullptr) {
-    std::cerr << "ERROR: Unable to connect to server" << std::endl;
-    return -1;
-  }
-
-  // If we made it this far, reset errno in case it was set above
-  if (errno == ECONNREFUSED)
-    errno = 0;
-
-  return 0;
+  // check errno for other errors before reseting
+  errno = 0;
+  return fd;
+}
+void client::initializeNetworkSettings()
+{
+  struct addrinfo hints;
+  memset(&hints, 0, sizeof(struct addrinfo));
+  setupHints(hints);
+  struct addrinfo* results = getAddrInfo(hints);
+  sockfd = createSocketAndConnect(results);
+  freeaddrinfo(results);
 }
 
-FILE* client::open_file()
+FILE* client::openFile()
 {
-  fstream = fopen(filename, "r");
+  fstream = fopen(filename.c_str(), "r");
   if (!fstream) {
     std::cerr << "ERROR: Unable to open file.\n";
     exit(2);
@@ -180,73 +172,68 @@ FILE* client::open_file()
   return fstream;
 }
 
-int client::write(const void* buf, size_t nbyte)
-{ 
-  return ::write(sockfd, buf, nbyte);
-}
-
-void
-commandEntered(char* ip, int p, char* f) {
-  std::cerr << "Command Entered:" << std::endl;
-  std::cerr << "    \"$ ./client " << ip << " " << p << " " << f << std::endl;
-}
-
 const unsigned short CHUNK = 1024;
 
-void sleepFor(char* message, int numSec) {
-  std::cerr << message << " " << numSec << " seconds.\n";
-  std::this_thread::sleep_for(std::chrono::seconds(numSec));
+int client::readBytesFromFileToBuffer(FILE* file, char* buf, unsigned long nbyte)
+{
+  int bytesRead = fread(buf, sizeof(char), nbyte-1, file);
+  if ( bytesRead == -1 ) {
+    perror("ERROR");
+    // fclose(file);
+    exit(IOERROR);
+  } 
+  return bytesRead;
+}
+
+int client::writeBytesFromBufferToSocket(char* buf, unsigned long nbyte, int socket)
+{
+  int bytesWritten = ::write(socket, buf, nbyte);
+  if (bytesWritten == -1) {
+    perror("ERROR");
+    exit(IOERROR);
+  }
+  return bytesWritten;
+}
+
+void client::sendFileOverNetworkSocket(int socket)
+{
+  FILE* file = openFile();
+
+  int bytesRead; 
+  int bytesWritten;
+
+  while (true) {
+    char buf[CHUNK];
+    bzero(buf, CHUNK);
+    
+    bytesRead = readBytesFromFileToBuffer(file, buf, CHUNK-1);
+    if( bytesRead == 0 ) {
+      break;
+    } else {
+      bytesWritten = writeBytesFromBufferToSocket(buf, CHUNK-1, socket);
+      if( bytesWritten > 0 )
+        continue;
+      else {
+        std::cerr << "Error writing bytes\n";
+        exit(-1);
+      }
+    }
+  }
+}
+
+void client::run()
+{
+  initializeNetworkSettings();
+  sendFileOverNetworkSocket(getSockFd());
 }
 
 int
 main(int argc, char* argv[])
 {
 
-  client* c = new client(argc, argv);
+  client c = client(argc, argv);
 
-  c->connect();
-
-  FILE* file = c->open_file();
-
-  int bytesRead;    // This is how we check whether reads
-  int bytesWritten; // and write are successful
-
-  while (true) {
-    // Get ready to fread() and write
-    char buf[CHUNK];
-    bzero(buf, CHUNK);
-    
-    bytesRead = fread(buf, sizeof(char), CHUNK-1, file);
-
-    // See whether there was an error reading
-    if ( bytesRead == -1 ) {
-      perror("ERROR");
-      fclose(file);
-      exit(IOERROR);
-      break;
-    } else if (bytesRead == 0) {
-      // std::cerr << "Finished Transmitting. Exiting.\n";
-      // break outta here, the file has been sent.
-      break;
-    } 
-
-    else {
-      // Send the information over the line
-      bytesWritten = c->write(buf, bytesRead);
-
-      // All is good if we wrote to the socket
-      if (bytesWritten > 0) {
-        continue;
-      } else if (bytesWritten == -1) {
-        // There was an error writing to the socket
-        perror("ERROR");
-        fclose(file);
-        exit(IOERROR);
-      } else {
-        std::cout << "ERROR: Something else happened" << std::endl;
-      }
-    }
-  }
+  c.run();
 
   exit(EXIT_SUCCESS);
 }

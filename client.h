@@ -6,28 +6,38 @@
 class client
 {
 private:
-	const char* hostname;
-	const char* port;
-	const char* filename;
+	std::string hostname;
+	std::string port;
+	std::string filename;
 	FILE* fstream;
 
 protected:
 	int sockfd;
 	int status;
 
-	const char* getArg(const char* arg);
-	const char* checkPortNo(const char* arg);
+	std::string getArg(const char* arg);
+	std::string checkPortNo(std::string arg);
+
+	void setupHints(struct addrinfo& hints);
+	struct addrinfo* getAddrInfo(struct addrinfo& hints);
+	ushort sleepForOneSecond();
+	bool timedOut(ushort secondsAsleep);
+	int createSocketAndConnect(struct addrinfo* results);
+	void initializeNetworkSettings();
+
+	int getSockFd();
+	int readBytesFromFileToBuffer(FILE* file, char* buf, unsigned long nbyte);
+	int writeBytesFromBufferToSocket(char* buf, unsigned long nbyte, int socket);
+	FILE* openFile();
+	void sendFileOverNetworkSocket(int socket);
 
 public:
 	client();			// done
 	client(int argc, char* argv[]);
 	~client();
-	
 
 	void usage();		// done
-	int connect();		
-	FILE* open_file();
-	int write(const void* buf, size_t nbyte);
+	void run();	
 };
 
 #endif

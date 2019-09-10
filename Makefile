@@ -13,8 +13,14 @@ client:
 	$(CXX) $(CXXFLAGS) -o $@ $@.cpp 
 
 clean:
-	rm -rf server client *.dSYM *.tar.gz
+	rm -rf server client *.dSYM *.tar.gz ./savedir/ test* FileManager
+
+test: FileManager
+	mkdir ./savedir
 
 dist: clean
 	tar -cvzf $(UID).tar.gz server.* client.* Makefile README.txt
 # 	TODO: add report.pdf to dist
+
+FileManager:
+	$(CXX) $(CXXFLAGS) -DTEST -o $@ $@.cpp 
