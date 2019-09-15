@@ -180,6 +180,40 @@ std::string server::nextFilename()
   return (prefix + filedir + std::to_string(++filenum) + postfix);
 }
 
+void server::pollFileDescriptors(struct PollingInfo info)
+{
+  int select_status = select(info.nfds, info.readfds, info.writefds, info.exceptfds, info.timeout);
+  if (select_status == -1) {
+    perror("Select");
+    exit(-10);
+  } else if (select_status == 0) {
+    // TODO: update this with correct handling
+    // We should never get here, but if we do, let console know.
+    std::cerr << "ERROR: TIMEOUT occured on main thread" << std::endl;
+    // close (listen_fd);
+    exit(-1);
+  }
+}
+
+bool desiredFDIsSet(int testfd, int requiredFD, fd_set* fdset)
+{
+  return (FD_ISSET(testfd, fdset) && (testfd == requiredFD));
+}
+
+int server::acceptClient(int socket)
+{
+  struct sockaddr_in clientAddr;
+  socklen_t clientAddrSize = sizeof(clientAddr);
+  int clientfd = accept(socket, (struct sockaddr*)&clientAddr, &clientAddrSize);
+  if (clientfd == -1) {
+    perror("ERROR");
+    // TODO update this with correct handling
+    exit(-1);
+  }
+
+  return clientfd;
+}
+
 void server::handleConnection(int clientfd, std::string file)
 {
    
@@ -231,40 +265,6 @@ void server::handleConnection(int clientfd, std::string file)
   } // end while
   of.close();
   close(clientfd);
-}
-
-void server::pollFileDescriptors(struct PollingInfo info)
-{
-  int select_status = select(info.nfds, info.readfds, info.writefds, info.exceptfds, info.timeout);
-  if (select_status == -1) {
-    perror("Select");
-    exit(-10);
-  } else if (select_status == 0) {
-    // TODO: update this with correct handling
-    // We should never get here, but if we do, let console know.
-    std::cerr << "ERROR: TIMEOUT occured on main thread" << std::endl;
-    // close (listen_fd);
-    exit(-1);
-  }
-}
-
-int server::acceptClient(int socket)
-{
-  struct sockaddr_in clientAddr;
-  socklen_t clientAddrSize = sizeof(clientAddr);
-  int clientfd = accept(socket, (struct sockaddr*)&clientAddr, &clientAddrSize);
-  if (clientfd == -1) {
-    perror("ERROR");
-    // TODO update this with correct handling
-    exit(-1);
-  }
-
-  return clientfd;
-}
-
-bool desiredFDIsSet(int testfd, int requiredFD, fd_set* fdset)
-{
-  return (FD_ISSET(testfd, fdset) && (testfd == requiredFD));
 }
 
 void server::run()

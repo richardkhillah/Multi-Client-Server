@@ -2,11 +2,17 @@
 
 File::File(std::string filename, std::ios::openmode mode)
 : _filename(filename), _mode(mode)
-{
-	// _fs.open(_filename, _mode);
-	// check if filename exists
+{	
+	// if no mode is supplied, do not open fstream object
 
-	// check if mode is a valid mode
+	// if mode is supplied, attempt to open a fstream object,
+	// set ios_base::openmode _iostate = _fs.fdstate();
+
+	// if any exceptions were caught while attempting open _fstream
+		// dig into _iostate.<flag>() options, and handle accordingly
+			// digging into C errno if required.
+
+	// return control to caller
 }
 
 // void File::open(std::ios::openmode mode)
@@ -32,7 +38,11 @@ File& File::write(const char* buf, size_t nbytes)
 	}
 	_fs.write(buf, nbytes);
 	
+	// updateStreamMetaData();
 	//TODO: proper error checking
+	if( _fs.bad() ) {
+		std::cerr << "Bad Bit Set\n";
+	}
 	return *this;
 }
 
@@ -161,6 +171,10 @@ void testMultiObjectmethodAccessor() {
 	File f("test5.txt", WRITE_ONLY);
 	f.write(buf3, strlen(buf3)).close().read(buf, strlen(buf3));
 	std::cerr << "contents of \"test5.txt\": " << buf << std::endl;
+}
+
+void testeof() {
+	
 }
 
 int main(void)

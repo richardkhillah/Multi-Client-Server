@@ -27,18 +27,36 @@
 #define KEEP_OPEN true
 #endif
 
+/*
+https://www.youtube.com/watch?v=Jh0G_A7iRac&list=PLvW9urHxi0wYUO9ymhxn3SrLrYtlKVouo&index=7&t=1632s
+at 32:09
+*/
+// class enum IOState : char 
+// { GOOD_BIT = 'g', BAD_BIT = 'b', EOF_BIT	= 'e', FAIL_BIT = 'f' };
+
+
+
 struct File {
 	std::string _filename;
 	std::fstream _fs;
 	std::ios::openmode _mode;
+	// std::ios_base::iostate _iostate;
 
 	File(std::string filename, std::ios::openmode mode);
+protected:
+	void updateStreamMetaData();
 
+public:
 	File& open();
 	File& close();
 	File& read(char* buf, size_t nbytes);
 	File& write(const char* buf, size_t nbytes);
 	File& truncate(bool leaveOpen);
+
+	bool eof() const	{ return _fs.eof();	 }
+	bool good() const	{ return _fs.good(); }
+	bool bad() const	{ return _fs.bad();	 }
+	bool fail() const	{ return _fs.fail(); }
 };
 
 class FileManager
