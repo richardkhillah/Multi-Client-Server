@@ -11,16 +11,16 @@
 #include <sys/types.h>
 
 #ifndef READ_ONLY
-#define READ_ONLY std::ios_base::in
+#define READ_ONLY std::ios::in
 #endif
 #ifndef WRITE_ONLY
-#define WRITE_ONLY std::ios_base::out
+#define WRITE_ONLY std::ios::out
 #endif
 #ifndef APPEND_ONLY
-#define APPEND_ONLY std::ios_base::app
+#define APPEND_ONLY std::ios::app
 #endif
 #ifndef TRUNC_ONLY
-#define TRUNC_ONLY std::ios_base::trunc
+#define TRUNC_ONLY std::ios::trunc
 #endif
 
 #ifndef KEEP_OPEN
@@ -30,9 +30,9 @@
 struct File {
 	std::string _filename;
 	std::fstream _fs;
-	std::ios_base::openmode _mode;
+	std::ios::openmode _mode;
 
-	File(std::string filename, std::ios_base::openmode mode);
+	File(std::string filename, std::ios::openmode mode);
 
 	File& open();
 	File& close();

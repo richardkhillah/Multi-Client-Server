@@ -7,7 +7,7 @@ UID=604853262
 all: server client
 
 server: 
-	$(CXX) $(CXXFLAGS) -o $@ $@.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $@.cpp FileManager.cpp
 
 client: 
 	$(CXX) $(CXXFLAGS) -o $@ $@.cpp 

@@ -1,6 +1,6 @@
 #include "FileManager.h"
 
-File::File(std::string filename, std::ios_base::openmode mode)
+File::File(std::string filename, std::ios::openmode mode)
 : _filename(filename), _mode(mode)
 {
 	// _fs.open(_filename, _mode);
@@ -9,7 +9,7 @@ File::File(std::string filename, std::ios_base::openmode mode)
 	// check if mode is a valid mode
 }
 
-// void File::open(std::ios_base::openmode mode)
+// void File::open(std::ios::openmode mode)
 File& File::open()
 {
 	if( !_fs.is_open() ) {

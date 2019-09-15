@@ -2,6 +2,7 @@
 #define _SERVER
 
 #include <string>
+#include "FileManager.h"
 
 struct PollingInfo {
 	int nfds;

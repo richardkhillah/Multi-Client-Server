@@ -184,20 +184,20 @@ void server::handleConnection(int clientfd, std::string file)
 {
    
   std::cerr << "file = " << file << std::endl;
-  FILE* ofile = fopen(file.c_str(), "w");
+  File of(file, WRITE_ONLY);
 
   // Keep track of progress
-  int bytesRead;
-  int bytesWritten;
+  int bytesRead = 0;
+  int bytesWritten = 0;
   int newCount = 0;
   int totalBytesRead = 0;
-  int totalBytesWritten = 0;
+  // int totalBytesWritten = 0;
 
   while (true) {
-    char buf[CHUNK];
-    bzero(buf, CHUNK);
+    char buf[CHUNK+1];
+    bzero(buf, CHUNK+1);
 
-    bytesRead = recv(clientfd, buf, CHUNK-1, MSG_DONTWAIT); // non-blocking
+    bytesRead = recv(clientfd, buf, CHUNK, MSG_DONTWAIT); // non-blocking 
 
     if (errno == EWOULDBLOCK) {
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -207,47 +207,29 @@ void server::handleConnection(int clientfd, std::string file)
       if( newCount == TIMEOUT ) {
         errno = ETIMEDOUT;
         perror("ERROR");
-
         if (totalBytesRead > 0) {
-          // flush contents of file
-          if (fclose(ofile) == 0) {
-            ofile = fopen(file.c_str(), "w");
-            const char *msg = "ERROR";
-            fwrite(msg, sizeof(char), sizeof msg, ofile);
-            break;
-          } else {
-            // TODO: handle--This shouldn't have happened and so errno is set
-            perror("ERROR:");
-            exit(EXIT_FAILURE);
-          }
+          of.truncate(KEEP_OPEN).write("ERROR", strlen("ERROR"));
         } else {
           std::cerr << "ERROR: No data sent from client.\n";
         } // end if totalBytesRead
-        break; // out of transmission loop
+        break;
       } // end if TIMEOUT
-      continue;
     } else {
       errno = 0;    // reset so we don't misinterpret later
       newCount = 0; 
-    }
 
-    if ( bytesRead > 0 ) {
-      totalBytesRead += bytesRead;
-      bytesWritten = fwrite(buf, sizeof(char), bytesRead, ofile);
-      if (bytesWritten < 0) {
+      if ( bytesRead > 0 ) {
+        totalBytesRead += bytesRead;
+        of.write(buf, bytesRead);
+      } else if (bytesRead == 0) {
+        break;  // eof reached and client closed cxn
+      } else {
         perror("ERROR");
-        break;
-      }
-      totalBytesWritten += bytesWritten;
-    } else if (bytesRead == 0) {
-      // eof reached and client closed cxn
-      break;
-    } else {
-      // bytes read
-    }
-  }
-  
-  fclose(ofile);
+        exit(-1);
+      }// end else
+    } // end else
+  } // end while
+  of.close();
   close(clientfd);
 }
 
